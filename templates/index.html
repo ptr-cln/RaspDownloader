@@ -1,0 +1,73 @@
+﻿<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RaspDownloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <div class="bg-orb orb-left"></div>
+    <div class="bg-orb orb-right"></div>
+
+    <main class="wrapper">
+      <section class="header-card reveal">
+        <p class="eyebrow">Raspberry Pi Zero Downloader</p>
+        <h1>Scarica da YouTube, Instagram, TikTok, Facebook e Reddit</h1>
+        <p class="subtitle">
+          Inserisci un link, scegli il formato migliore e scarica in pochi secondi.
+        </p>
+      </section>
+
+      <section class="panel reveal delay-1">
+        <form id="analyze-form" class="stack">
+          <label for="url-input">URL contenuto</label>
+          <div class="input-row">
+            <input
+              id="url-input"
+              type="url"
+              placeholder="https://..."
+              required
+              autocomplete="off"
+            />
+            <button type="submit" id="analyze-btn">Analizza</button>
+          </div>
+        </form>
+
+        <div id="status" class="status" aria-live="polite"></div>
+
+        <article id="media-card" class="media-card hidden">
+          <img id="media-thumb" alt="anteprima" />
+          <div>
+            <h2 id="media-title"></h2>
+            <p id="media-meta"></p>
+          </div>
+        </article>
+
+        <section id="options" class="hidden">
+          <div class="mode-switch">
+            <button class="mode-btn active" data-mode="video" type="button">Video</button>
+            <button class="mode-btn" data-mode="audio" type="button">Audio</button>
+          </div>
+
+          <div id="video-options" class="format-grid"></div>
+
+          <div id="audio-options" class="audio-options hidden">
+            <p>Formato di esportazione</p>
+            <div class="chip-row" id="audio-chip-row"></div>
+          </div>
+
+          <button id="download-btn" class="download-btn" type="button">Scarica ora</button>
+        </section>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
