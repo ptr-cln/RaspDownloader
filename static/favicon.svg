@@ -3,8 +3,8 @@
   <!-- Download arrow -->
   <g fill="#fff">
     <!-- Vertical bar -->
-    <rect x="24" y="8" width="16" height="24" rx="1"/>
+    <rect x="26" y="12" width="12" height="18" rx="1"/>
     <!-- Arrow head -->
-    <polygon points="32,56 8,26 20,26 20,20 44,20 44,26 56,26"/>
+    <polygon points="32,48 16,32 23,32 23,28 41,28 41,32 48,32"/>
   </g>
 </svg>
