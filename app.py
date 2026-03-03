@@ -295,4 +295,4 @@ def resolve_downloaded_file(token: str, mode: str, audio_ext: str) -> Path | Non
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=False)
+    app.run(host="0.0.0.0", port=8001, debug=False)
