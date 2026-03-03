@@ -9,7 +9,7 @@ User=pi
 Group=pi
 WorkingDirectory=/home/pi/RaspDownloader
 Environment="PATH=/home/pi/RaspDownloader/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/home/pi/RaspDownloader/.venv/bin/waitress-serve --listen=0.0.0.0:8000 app:app
+ExecStart=/home/pi/RaspDownloader/.venv/bin/waitress-serve --listen=0.0.0.0:8001 app:app
 Restart=always
 RestartSec=5
 
