@@ -15,6 +15,7 @@ DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 SUPPORTED_AUDIO_OUTPUTS = ["mp3", "m4a", "opus", "wav", "flac"]
 URL_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
+TEMP_FORMAT_PATTERN = re.compile(r"\.f\d+$")
 
 
 def create_app() -> Flask:
@@ -70,8 +71,21 @@ def create_app() -> Flask:
         }
 
         if mode == "video":
-            ydl_opts["format"] = f"{format_id}+bestaudio/best"
-            ydl_opts["merge_output_format"] = "mp4"
+            selected_format = fetch_video_format_info(url, format_id)
+            has_audio = selected_format["acodec"] != "none"
+            selected_ext = selected_format["ext"]
+
+            if has_audio:
+                ydl_opts["format"] = format_id
+                if selected_ext != "mp4":
+                    ydl_opts["postprocessors"] = [{"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}]
+            else:
+                ydl_opts["format"] = (
+                    f"{format_id}+bestaudio[ext=m4a]/"
+                    f"{format_id}+bestaudio[acodec^=mp4a]/"
+                    f"{format_id}+bestaudio[acodec^=aac]"
+                )
+                ydl_opts["merge_output_format"] = "mp4"
         else:
             ydl_opts["format"] = "bestaudio/best"
             ydl_opts["postprocessors"] = [
@@ -88,14 +102,19 @@ def create_app() -> Flask:
         except DownloadError as exc:
             message = str(exc)
             if "ffmpeg is not installed" in message.lower():
-                message = "FFmpeg non trovato. Installa ffmpeg per convertire i formati audio."
+                message = (
+                    "FFmpeg non trovato. Per MP4 con audio e conversioni audio installa ffmpeg e "
+                    "verifica che sia nel PATH."
+                )
+            if "requested format is not available" in message.lower():
+                message = "Formato non disponibile con audio compatibile MP4. Prova un altro formato video."
             return jsonify({"error": f"Download fallito: {message}"}), 400
         except Exception:
             return jsonify({"error": "Errore interno durante il download."}), 500
 
-        downloaded_file = latest_token_file(token)
+        downloaded_file = resolve_downloaded_file(token, mode, audio_ext)
         if not downloaded_file:
-            return jsonify({"error": "File non trovato dopo il download."}), 500
+            return jsonify({"error": "Nessun file finale valido trovato dopo il download."}), 500
 
         @after_this_request
         def cleanup(response: Any) -> Any:
@@ -158,6 +177,7 @@ def extract_media_details(url: str) -> dict[str, Any]:
                     "note": fmt.get("format_note") or "",
                     "vcodec": vcodec,
                     "acodec": acodec,
+                    "has_audio": acodec != "none",
                     "tbr": fmt.get("tbr") or 0,
                 }
             )
@@ -176,7 +196,7 @@ def extract_media_details(url: str) -> dict[str, Any]:
                 }
             )
 
-    video_formats.sort(key=lambda item: (item["height"], item["tbr"]), reverse=True)
+    video_formats.sort(key=lambda item: (item["has_audio"], item["height"], item["tbr"]), reverse=True)
     audio_formats.sort(key=lambda item: (item["abr"], item["tbr"]), reverse=True)
 
     title = info.get("title") or "Titolo sconosciuto"
@@ -206,13 +226,70 @@ def dedupe_by_key(items: list[dict[str, Any]], key: str) -> list[dict[str, Any]]
     return unique
 
 
-def latest_token_file(token: str) -> Path | None:
-    matches = sorted(
+def fetch_video_format_info(url: str, format_id: str) -> dict[str, str]:
+    opts = {
+        "noplaylist": True,
+        "skip_download": True,
+        "quiet": True,
+    }
+    with YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    if "entries" in info and info["entries"]:
+        info = info["entries"][0]
+
+    for fmt in info.get("formats") or []:
+        if str(fmt.get("format_id")) != format_id:
+            continue
+        vcodec = (fmt.get("vcodec") or "none").strip()
+        if vcodec == "none":
+            continue
+        return {
+            "ext": str(fmt.get("ext") or "").lower(),
+            "acodec": str(fmt.get("acodec") or "none").lower(),
+        }
+
+    raise DownloadError("Formato video selezionato non trovato.")
+
+
+def resolve_downloaded_file(token: str, mode: str, audio_ext: str) -> Path | None:
+    candidates = sorted(
         DOWNLOAD_DIR.glob(f"*-{token}.*"),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
-    return matches[0] if matches else None
+    if not candidates:
+        return None
+
+    valid_candidates = [
+        path
+        for path in candidates
+        if not path.name.endswith(".part") and not path.name.endswith(".ytdl")
+    ]
+    if not valid_candidates:
+        return None
+
+    if mode == "video":
+        preferred_video = [
+            path
+            for path in valid_candidates
+            if path.suffix.lower() == ".mp4" and not TEMP_FORMAT_PATTERN.search(path.stem)
+        ]
+        if preferred_video:
+            return preferred_video[0]
+
+    if mode == "audio":
+        expected_suffix = f".{audio_ext.lower()}"
+        preferred_audio = [
+            path
+            for path in valid_candidates
+            if path.suffix.lower() == expected_suffix and not TEMP_FORMAT_PATTERN.search(path.stem)
+        ]
+        if preferred_audio:
+            return preferred_audio[0]
+
+    clean_fallback = [path for path in valid_candidates if not TEMP_FORMAT_PATTERN.search(path.stem)]
+    return clean_fallback[0] if clean_fallback else valid_candidates[0]
 
 
 app = create_app()

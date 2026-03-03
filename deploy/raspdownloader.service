@@ -1,0 +1,17 @@
+﻿[Unit]
+Description=RaspDownloader Web App
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/RaspDownloader
+Environment="PATH=/home/pi/RaspDownloader/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/pi/RaspDownloader/.venv/bin/waitress-serve --listen=0.0.0.0:8000 app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

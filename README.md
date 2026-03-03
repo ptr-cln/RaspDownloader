@@ -5,41 +5,113 @@ Web app (frontend + backend Python) per scaricare contenuti da piattaforme suppo
 ## Requisiti
 
 - Python 3.11+
-- `ffmpeg` installato e disponibile nel `PATH` (necessario per conversione audio)
+- `ffmpeg` installato e disponibile nel `PATH` (serve per merge video+audio e conversioni audio)
 
-## Installazione
+## Avvio rapido (sviluppo)
 
 ```bash
 python -m venv .venv
-. .venv/bin/activate  # Linux/macOS
-# oppure su Windows: .venv\\Scripts\\activate
+# Linux/macOS
+source .venv/bin/activate
+# Windows
+# .venv\\Scripts\\activate
 pip install -r requirements.txt
-```
-
-## Avvio
-
-```bash
 python app.py
 ```
 
-L'app sara disponibile su:
+App disponibile su:
 
 - `http://localhost:8000`
-- in LAN (utile su Raspberry): `http://<ip-raspberry>:8000`
+- `http://<ip-dispositivo>:8000`
 
-## Flusso utente
+## Installazione su Raspberry Pi (consigliata)
 
-1. Inserisci URL del contenuto.
-2. Premi `Analizza` per vedere i formati disponibili.
-3. Scegli `Video` o `Audio`.
-4. Scarica il file nel formato selezionato.
+### 1. Pacchetti di sistema
 
-## Note Raspberry Pi Zero
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip ffmpeg
+```
 
-- Per prestazioni migliori usa Raspberry Pi OS Lite.
-- Su contenuti lunghi, conversioni audio (es. `wav`, `flac`) possono richiedere tempo.
-- Verifica spazio libero su disco e connettivita stabile.
+### 2. Clone del repository
+
+```bash
+cd /home/pi
+git clone https://github.com/ptr-cln/RaspDownloader.git
+cd RaspDownloader
+```
+
+### 3. Ambiente Python
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 4. Verifica FFmpeg e PATH
+
+```bash
+which ffmpeg
+ffmpeg -version
+```
+
+Con installazione da `apt`, di solito `ffmpeg` e gia in `/usr/bin` ed e gia nel `PATH`.
+
+Se non viene trovato, aggiungi il PATH nella shell:
+
+```bash
+echo 'export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+## Esecuzione continua e auto-avvio al riavvio (systemd)
+
+Nel repository e presente il file di servizio:
+
+- `deploy/raspdownloader.service`
+
+### 1. Adatta utente e path (se non usi `pi`)
+
+Apri il file e modifica:
+
+- `User=`
+- `Group=`
+- `WorkingDirectory=`
+- `Environment="PATH=..."`
+- `ExecStart=`
+
+### 2. Installa il servizio
+
+```bash
+sudo cp deploy/raspdownloader.service /etc/systemd/system/raspdownloader.service
+sudo systemctl daemon-reload
+sudo systemctl enable raspdownloader
+sudo systemctl start raspdownloader
+```
+
+### 3. Controllo stato/log
+
+```bash
+sudo systemctl status raspdownloader
+sudo journalctl -u raspdownloader -f
+```
+
+Dopo il riavvio del Raspberry, il servizio parte automaticamente.
+
+## Accesso da altri dispositivi in rete
+
+Trova l'IP del Raspberry:
+
+```bash
+hostname -I
+```
+
+Poi apri da PC/telefono:
+
+- `http://<ip-raspberry>:8000`
 
 ## Avvertenza legale
 
-Usa questo tool solo per contenuti che hai diritto a scaricare, rispettando termini di servizio e copyright della piattaforma.
+Usa il tool solo per contenuti che hai diritto a scaricare, rispettando termini di servizio e copyright delle piattaforme.

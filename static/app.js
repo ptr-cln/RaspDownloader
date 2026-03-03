@@ -158,38 +158,40 @@ function renderVideoFormats(formats) {
   videoOptions.innerHTML = "";
   selectedVideoFormat = "";
 
-  const shortlist = formats.slice(0, 16);
+  const compactedFormats = compactVideoFormats(formats).slice(0, 24);
+  const integratedAudio = compactedFormats.filter((item) => hasIntegratedAudio(item));
+  const videoOnly = compactedFormats.filter((item) => !hasIntegratedAudio(item));
+  const defaultSelectedId = pickDefaultVideoFormatId(compactedFormats);
 
-  shortlist.forEach((format, index) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "format-card";
-    card.dataset.id = format.format_id;
+  if (!compactedFormats.length) {
+    const empty = document.createElement("p");
+    empty.className = "format-empty";
+    empty.textContent = "Nessun formato video disponibile per questo contenuto.";
+    videoOptions.appendChild(empty);
+    return;
+  }
 
-    const main = document.createElement("div");
-    main.className = "format-main";
-    main.textContent = `${format.resolution} • ${String(format.ext).toUpperCase()}`;
+  if (integratedAudio.length) {
+    videoOptions.appendChild(
+      buildFormatGroup({
+        title: "Consigliati (audio integrato)",
+        note: "Scaricano un file pronto, senza passaggi extra.",
+        formats: integratedAudio,
+        defaultSelectedId,
+      }),
+    );
+  }
 
-    const details = [
-      `ID ${format.format_id}`,
-      format.note || "-",
-      format.filesize_mb ? `${format.filesize_mb} MB` : "size N/D",
-      format.fps ? `${format.fps} fps` : null,
-    ].filter(Boolean);
-
-    const sub = document.createElement("div");
-    sub.className = "format-sub";
-    sub.textContent = details.join(" • ");
-
-    card.append(main, sub);
-    card.addEventListener("click", () => selectVideoFormat(card, format.format_id));
-
-    if (index === 0) {
-      selectVideoFormat(card, format.format_id);
-    }
-
-    videoOptions.appendChild(card);
-  });
+  if (videoOnly.length) {
+    videoOptions.appendChild(
+      buildFormatGroup({
+        title: "Avanzati (solo video)",
+        note: "Richiedono merge audio automatico con FFmpeg.",
+        formats: videoOnly,
+        defaultSelectedId,
+      }),
+    );
+  }
 }
 
 function renderAudioOptions() {
@@ -222,7 +224,7 @@ function renderAudioOptions() {
 
 function selectVideoFormat(selectedCard, formatId) {
   selectedVideoFormat = formatId;
-  [...videoOptions.children].forEach((card) => card.classList.remove("active"));
+  [...videoOptions.querySelectorAll(".format-card")].forEach((card) => card.classList.remove("active"));
   selectedCard.classList.add("active");
 }
 
@@ -262,4 +264,119 @@ function formatDuration(seconds) {
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.classList.toggle("error", isError);
+}
+
+function hasIntegratedAudio(format) {
+  return Boolean(format.has_audio) || String(format.acodec || "none").toLowerCase() !== "none";
+}
+
+function compactVideoFormats(formats) {
+  const seen = new Set();
+  const result = [];
+
+  const sorted = [...formats].sort((a, b) => {
+    const audioWeight = Number(hasIntegratedAudio(b)) - Number(hasIntegratedAudio(a));
+    if (audioWeight !== 0) return audioWeight;
+    const heightDiff = Number(b.height || 0) - Number(a.height || 0);
+    if (heightDiff !== 0) return heightDiff;
+    return Number(b.tbr || 0) - Number(a.tbr || 0);
+  });
+
+  sorted.forEach((format) => {
+    const key = [
+      String(format.resolution || "n/d").toLowerCase(),
+      String(format.ext || "n/a").toLowerCase(),
+      Number(format.fps || 0),
+      hasIntegratedAudio(format) ? 1 : 0,
+    ].join("|");
+
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    result.push(format);
+  });
+
+  return result;
+}
+
+function pickDefaultVideoFormatId(formats) {
+  if (!formats.length) return "";
+
+  const best =
+    formats.find((item) => String(item.ext).toLowerCase() === "mp4" && hasIntegratedAudio(item)) ||
+    formats.find((item) => hasIntegratedAudio(item)) ||
+    formats[0];
+
+  return best ? String(best.format_id) : "";
+}
+
+function buildFormatGroup({ title, note, formats, defaultSelectedId }) {
+  const group = document.createElement("section");
+  group.className = "format-group";
+
+  const header = document.createElement("div");
+  header.className = "format-group-header";
+
+  const heading = document.createElement("h3");
+  heading.className = "format-group-title";
+  heading.textContent = title;
+
+  const helper = document.createElement("p");
+  helper.className = "format-group-note";
+  helper.textContent = note;
+
+  header.append(heading, helper);
+
+  const grid = document.createElement("div");
+  grid.className = "format-group-grid";
+
+  formats.forEach((format, index) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "format-card";
+    card.dataset.id = String(format.format_id);
+
+    const main = document.createElement("div");
+    main.className = "format-main";
+    main.textContent = `${format.resolution} • ${String(format.ext).toUpperCase()}`;
+
+    const meta = document.createElement("div");
+    meta.className = "format-meta";
+    meta.textContent = [
+      format.filesize_mb ? `${format.filesize_mb} MB` : "size N/D",
+      format.fps ? `${format.fps} fps` : null,
+      `ID ${format.format_id}`,
+    ]
+      .filter(Boolean)
+      .join(" • ");
+
+    const badges = document.createElement("div");
+    badges.className = "format-badges";
+
+    const audioBadge = document.createElement("span");
+    audioBadge.className = `format-badge ${hasIntegratedAudio(format) ? "is-safe" : "is-warning"}`;
+    audioBadge.textContent = hasIntegratedAudio(format) ? "Audio integrato" : "Solo video";
+    badges.appendChild(audioBadge);
+
+    if (format.note) {
+      const noteBadge = document.createElement("span");
+      noteBadge.className = "format-badge";
+      noteBadge.textContent = format.note;
+      badges.appendChild(noteBadge);
+    }
+
+    card.append(main, badges, meta);
+    card.addEventListener("click", () => selectVideoFormat(card, String(format.format_id)));
+
+    if (String(format.format_id) === defaultSelectedId || (!defaultSelectedId && index === 0)) {
+      selectVideoFormat(card, String(format.format_id));
+    }
+
+    grid.appendChild(card);
+  });
+
+  group.append(header, grid);
+  return group;
 }
